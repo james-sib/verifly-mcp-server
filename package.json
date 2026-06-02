@@ -1,0 +1,29 @@
+{
+  "name": "@verifly/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server that gives AI agents Verifly email verification, list cleaning, extraction, and domain-health tools.",
+  "type": "module",
+  "bin": {
+    "verifly-mcp": "./bin/verifly-mcp.js"
+  },
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "email-verification",
+    "email-validation",
+    "verifly"
+  ],
+  "license": "MIT"
+}
