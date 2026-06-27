@@ -1,29 +1,40 @@
 {
-  "name": "@verifly/mcp-server",
-  "version": "0.1.0",
-  "description": "MCP server that gives AI agents Verifly email verification, list cleaning, extraction, and domain-health tools.",
+  "name": "verifly-mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) server for the Verifly email-verification API (verifly.email). Exposes email verification, batch verification, list cleaning, email extraction, domain-health checks, and credit lookup as agent-callable tools.",
   "type": "module",
-  "bin": {
-    "verifly-mcp": "./bin/verifly-mcp.js"
-  },
-  "files": [
-    "bin",
-    "README.md",
-    "LICENSE"
-  ],
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0"
+  "license": "MIT",
+  "homepage": "https://verifly.email/mcp-email-verification",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/james-sib/verifly-mcp-server.git"
   },
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "ai-agent",
     "email-verification",
+    "verifly",
     "email-validation",
-    "verifly"
+    "ai-agents"
   ],
-  "license": "MIT"
+  "bin": {
+    "verifly-mcp-server": "src/stdio.js"
+  },
+  "main": "src/server.js",
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node src/stdio.js",
+    "start:http": "node src/http.js",
+    "test:e2e": "node test/test-client.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "engines": {
+    "node": ">=18"
+  }
 }
