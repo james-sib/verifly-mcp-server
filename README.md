@@ -1,45 +1,70 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/james-sib/verifly-mcp-server/master/logo.png" width="120" alt="Verifly logo" />
+</p>
+
 # Verifly MCP Server
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server for the
-**[Verifly](https://verifly.email)** email-verification API. It lets any
-MCP-capable agent (Claude Desktop, Claude Code, Custom GPTs via a bridge, etc.)
-verify emails, clean lists, extract addresses from text, and check domain health
-through Verifly's REST API.
+Agent-native **email verification** over the
+[Model Context Protocol](https://modelcontextprotocol.io). This server gives any
+MCP client — Cline, Claude Desktop, Claude Code, Cursor, Windsurf — a clean set
+of tools to verify email addresses, clean lists, run async bulk jobs, and manage
+a [Verifly](https://verifly.email) account, all without writing a single raw HTTP
+call.
+
+It is built for autonomous workflows: an agent can **self-register** for an API
+key, verify a lead before sending, deduplicate and scrub an import list, kick off
+a bulk job and poll it to completion, and check its own credits and usage — end
+to end.
 
 ## Tools
 
-| Tool | What it does | REST endpoint |
-|------|--------------|---------------|
-| `verify_email` | Verify a single address (verdict, flags, recommendation, credits) | `GET /api/v1/verify` |
-| `verify_batch` | Verify a list synchronously (per-address verdicts) | `POST /api/v1/verify/batch` |
-| `clean_email_list` | Dedupe + drop invalid/disposable/role from a list | `POST /api/v1/clean` |
-| `extract_emails` | Pull email addresses out of free-form text | `POST /api/v1/extract` |
-| `check_domain_health` | MX / SPF / DMARC + health score for a domain | `GET /api/tools/domain-health` |
-| `get_credits` | Remaining credits + usage (free, no credits) | `GET /api/v1/credits` |
+15 tools cover the full Verifly workflow:
+
+| Tool | What it does |
+|------|--------------|
+| `verify_email` | Verify a single address in real time (verdict, reason, flags, send/reject recommendation, credits) |
+| `verify_batch` | Verify a list synchronously (per-address verdicts; best for up to a few hundred) |
+| `clean_email_list` | Dedupe + drop invalid syntax, disposable, and role addresses from a list |
+| `extract_emails` | Pull every email address out of free-form text (notes, signatures, pasted docs) |
+| `check_domain_health` | MX / SPF / DMARC records + an overall health score for a domain |
+| `get_credits` | Remaining verification credits + recent usage (free, no credits) |
+| `submit_bulk` | Submit an async bulk verification job for large lists (returns a `job_id`; optional `webhook_url`) |
+| `get_job_status` | Status + progress of a bulk job |
+| `get_job_results` | Per-address results of a completed bulk job |
+| `list_jobs` | List the account's bulk jobs (filter by status, paginate) |
+| `get_usage` | Detailed usage statistics for a period (day / week / month) |
+| `get_account` | Account profile: email, company, credits, plan, key count (free) |
+| `get_packages` | List the credit packages available to purchase |
+| `buy_credits` | Start a credit-package purchase and return a checkout link |
+| `register_account` | Self-onboard a brand-new account; returns an `api_key` shown once |
 
 ## Authentication
 
-Get an API key from <https://verifly.email>. The server reads it from the
-`VERIFLY_API_KEY` environment variable. The hosted HTTP transport also accepts a
-per-request `Authorization: Bearer <key>` header (which overrides the env var),
-so each caller can supply their own key.
+Get an API key from <https://verifly.email> (or have an agent self-register with
+`register_account`). The server reads the key from the `VERIFLY_API_KEY`
+environment variable. Every Verifly request is authenticated with
+`Authorization: Bearer <key>`.
 
-## Install / Run (stdio — primary)
+The hosted HTTP transport also accepts a per-request `Authorization: Bearer <key>`
+header (which overrides the env var), so each caller can supply their own key.
+
+## Install (local, stdio) — recommended for Cline
 
 ```bash
-npx verifly-mcp-server
+npx -y verifly-mcp-server
 ```
 
-or install globally:
+or install it globally:
 
 ```bash
 npm install -g verifly-mcp-server
 verifly-mcp-server
 ```
 
-### Claude Desktop config
+### Client config
 
-`claude_desktop_config.json`:
+Add this to your MCP client config (Cline: `cline_mcp_settings.json`; Claude
+Desktop: `claude_desktop_config.json`):
 
 ```json
 {
@@ -55,17 +80,36 @@ verifly-mcp-server
 }
 ```
 
-## Hosted HTTP transport
+That's the whole setup — no build step, no clone. See
+[`llms-install.md`](./llms-install.md) for an agent-followable install guide.
 
-A Streamable-HTTP server for hosting behind nginx (e.g. at
-`https://verifly.email/mcp`).
+## Hosted Streamable-HTTP transport
+
+If you'd rather not run anything locally, Verifly hosts the same server as a
+remote **Streamable-HTTP** endpoint:
+
+```
+https://verifly.email/mcp
+```
+
+Point any Streamable-HTTP-capable MCP client at that URL and pass your key as an
+`Authorization: Bearer <key>` header. Example raw call:
+
+```bash
+curl -s -X POST https://verifly.email/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Authorization: Bearer vf_your_api_key" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
+       "params":{"name":"verify_email","arguments":{"email":"lead@example.com"}}}'
+```
+
+### Self-hosting the HTTP transport
 
 ```bash
 PORT=8787 VERIFLY_API_KEY=vf_your_api_key node src/http.js
 # or: PORT=8787 VERIFLY_API_KEY=vf_... npm run start:http
 ```
-
-Environment variables:
 
 | Var | Default | Purpose |
 |-----|---------|---------|
@@ -77,33 +121,6 @@ Environment variables:
 
 - MCP endpoint: `POST {MCP_PATH}` (stateless Streamable HTTP).
 - Health check: `GET /healthz` → `{"ok":true}`.
-- Per request, the key is taken from `Authorization: Bearer <key>` if present,
-  otherwise from `VERIFLY_API_KEY`.
-
-Example raw call:
-
-```bash
-curl -s -X POST http://127.0.0.1:8787/mcp \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -H "Authorization: Bearer vf_your_api_key" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
-       "params":{"name":"verify_email","arguments":{"email":"lead@example.com"}}}'
-```
-
-### nginx location (reverse proxy)
-
-```nginx
-location /mcp {
-    proxy_pass http://127.0.0.1:8787/mcp;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header Authorization $http_authorization;
-    proxy_set_header Connection "";
-    proxy_buffering off;        # needed for streaming/SSE responses
-    proxy_read_timeout 300s;
-}
-```
 
 ## Test
 

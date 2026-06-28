@@ -4,7 +4,18 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { veriflyRequest } from "./api.js";
+import {
+  veriflyRequest,
+  submitBulk,
+  getJobStatus,
+  getJobResults,
+  listJobs,
+  getUsage,
+  getAccount,
+  getPackages,
+  buyCredits,
+  registerAccount,
+} from "./api.js";
 
 export const SERVER_NAME = "verifly-mcp-server";
 export const SERVER_VERSION = "1.0.0";
@@ -192,6 +203,244 @@ export function buildServer(resolveApiKey) {
     async () => {
       try {
         return jsonContent(await call("/api/v1/credits"));
+      } catch (err) {
+        return errorContent(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "submit_bulk",
+    {
+      title: "Submit an async bulk verification job",
+      description:
+        "Submit a list of email addresses as an asynchronous bulk verification job — the " +
+        "right tool for large lists. Returns immediately with a job_id, status, and the " +
+        "check_status_url / results_url to poll. Small lists may complete inline (status " +
+        "'completed'); larger ones return status 'pending' — poll get_job_status until it is " +
+        "'completed', then call get_job_results. Optionally register a webhook_url (public " +
+        "HTTPS) to be notified when the job finishes.",
+      inputSchema: {
+        emails: z
+          .array(z.string())
+          .min(1)
+          .describe("Email addresses to verify in this job (deduped server-side)."),
+        webhook_url: z
+          .string()
+          .optional()
+          .describe("Optional public HTTPS URL to POST a job.completed notification to."),
+      },
+    },
+    async ({ emails, webhook_url }) => {
+      try {
+        return jsonContent(await submitBulk(resolveApiKey(), { emails, webhook_url }));
+      } catch (err) {
+        return errorContent(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_job_status",
+    {
+      title: "Get the status of a bulk verification job",
+      description:
+        "Fetch the current status and progress of a bulk verification job by its job_id " +
+        "(status, percent progress, processed count, and a valid/invalid/risky summary). " +
+        "Poll this after submit_bulk until status is 'completed', then call get_job_results.",
+      inputSchema: {
+        job_id: z.string().describe("The job_id returned by submit_bulk."),
+      },
+    },
+    async ({ job_id }) => {
+      try {
+        return jsonContent(await getJobStatus(resolveApiKey(), job_id));
+      } catch (err) {
+        return errorContent(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_job_results",
+    {
+      title: "Get the results of a completed bulk job",
+      description:
+        "Fetch the full per-address results of a completed bulk verification job by job_id " +
+        "(each email's verdict, recommendation, and reason) plus the valid/invalid/risky " +
+        "summary and credits used. The job must be 'completed' — check get_job_status first.",
+      inputSchema: {
+        job_id: z.string().describe("The job_id returned by submit_bulk."),
+      },
+    },
+    async ({ job_id }) => {
+      try {
+        return jsonContent(await getJobResults(resolveApiKey(), job_id));
+      } catch (err) {
+        return errorContent(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "list_jobs",
+    {
+      title: "List bulk verification jobs",
+      description:
+        "List the account's bulk verification jobs, most recent first, with their status, " +
+        "progress, and summary. Optionally filter by status and paginate. Use this to find " +
+        "past jobs and their job_ids.",
+      inputSchema: {
+        status: z
+          .enum(["pending", "processing", "completed", "failed"])
+          .optional()
+          .describe("Only return jobs in this status."),
+        limit: z
+          .number()
+          .int()
+          .optional()
+          .describe("Max jobs to return (1-100, default 50)."),
+        offset: z
+          .number()
+          .int()
+          .optional()
+          .describe("Pagination offset (default 0)."),
+      },
+    },
+    async ({ status, limit, offset }) => {
+      try {
+        return jsonContent(await listJobs(resolveApiKey(), { status, limit, offset }));
+      } catch (err) {
+        return errorContent(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_usage",
+    {
+      title: "Get detailed usage statistics",
+      description:
+        "Return detailed usage statistics for the account over a period (day, week, or " +
+        "month): total credits used, emails processed, request counts broken down by " +
+        "endpoint and source, a daily breakdown, and recent activity.",
+      inputSchema: {
+        period: z
+          .enum(["day", "week", "month"])
+          .optional()
+          .describe("Reporting period. Default 'month'."),
+        limit: z
+          .number()
+          .int()
+          .optional()
+          .describe("Max recent log entries to include (default 100, max 1000)."),
+      },
+    },
+    async ({ period, limit }) => {
+      try {
+        return jsonContent(await getUsage(resolveApiKey(), { period, limit }));
+      } catch (err) {
+        return errorContent(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_account",
+    {
+      title: "Get account information",
+      description:
+        "Return the account profile for the current API key: email, name, company, " +
+        "timezone, remaining credits, total credits used, number of API keys, and plan. " +
+        "Costs no credits.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        return jsonContent(await getAccount(resolveApiKey()));
+      } catch (err) {
+        return errorContent(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_packages",
+    {
+      title: "List buyable credit packages",
+      description:
+        "List the credit packages available for purchase (id, name, credit amount, price in " +
+        "USD, and price per 1k credits). Use the returned package id with buy_credits.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        return jsonContent(await getPackages(resolveApiKey()));
+      } catch (err) {
+        return errorContent(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "buy_credits",
+    {
+      title: "Buy credits (returns a payment link or crypto invoice)",
+      description:
+        "Start a purchase of a credit package and return a way to pay. This does NOT complete " +
+        "a payment by itself — it returns a payment link / address:\n" +
+        "• method 'stripe' → returns a checkout_url. Paying by card requires a HUMAN to open " +
+        "that link and enter card details; an agent cannot finish a card payment on its own.\n" +
+        "• method 'crypto' → returns a Plisio invoice with a checkout_url AND, when you pass a " +
+        "`currency` (BTC, ETH, LTC, USDT, USDC), a RAW wallet `address` + `amount`. An " +
+        "autonomous agent CAN pay this from a crypto wallet with no browser/human, then credits " +
+        "are added automatically once the payment confirms. Prefer crypto for fully autonomous " +
+        "top-ups. Get a package id from get_packages first.",
+      inputSchema: {
+        package_id: z
+          .string()
+          .describe("The package id to buy (from get_packages)."),
+        method: z
+          .enum(["stripe", "crypto"])
+          .optional()
+          .describe("Payment method. 'stripe' = card link (needs a human), 'crypto' = wallet-payable invoice. Default 'stripe'."),
+        currency: z
+          .enum(["BTC", "ETH", "LTC", "USDT", "USDC"])
+          .optional()
+          .describe("For method 'crypto': the coin to pay in; returns a raw wallet address an agent can pay autonomously."),
+      },
+    },
+    async ({ package_id, method, currency }) => {
+      try {
+        return jsonContent(await buyCredits(resolveApiKey(), { package_id, method, currency }));
+      } catch (err) {
+        return errorContent(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "register_account",
+    {
+      title: "Self-register a new Verifly account + API key",
+      description:
+        "Programmatically create a brand-new Verifly account — this is how an agent " +
+        "self-onboards with no human in the loop. Requires only an email and a password " +
+        "(min 8 chars; disposable email domains are rejected). The new account starts with " +
+        "free credits. The response includes the new account id/email and a freshly generated " +
+        "`api_key.key` that is shown ONCE — capture and store it immediately, it cannot be " +
+        "retrieved again. Subsequent tool calls can then use that key as the bearer token.",
+      inputSchema: {
+        email: z.string().describe("Email for the new account (not a disposable domain)."),
+        password: z
+          .string()
+          .min(8)
+          .describe("Password for the new account (minimum 8 characters)."),
+      },
+    },
+    async ({ email, password }) => {
+      try {
+        return jsonContent(await registerAccount({ email, password }));
       } catch (err) {
         return errorContent(err);
       }

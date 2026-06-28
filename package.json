@@ -1,7 +1,7 @@
 {
   "name": "verifly-mcp-server",
-  "version": "1.0.0",
-  "description": "Model Context Protocol (MCP) server for the Verifly email-verification API (verifly.email). Exposes email verification, batch verification, list cleaning, email extraction, domain-health checks, and credit lookup as agent-callable tools.",
+  "version": "1.1.0",
+  "description": "Agent-native Model Context Protocol (MCP) server for the Verifly email-verification API (verifly.email). 15 tools: single/batch/bulk email verification, list cleaning, email extraction, domain-health checks, account/usage/credits management, and self-registration.",
   "type": "module",
   "license": "MIT",
   "homepage": "https://verifly.email/mcp-email-verification",
@@ -23,7 +23,8 @@
   "main": "src/server.js",
   "files": [
     "src",
-    "README.md"
+    "README.md",
+    "llms-install.md"
   ],
   "scripts": {
     "start": "node src/stdio.js",
