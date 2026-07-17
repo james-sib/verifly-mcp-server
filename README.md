@@ -2,6 +2,13 @@
   <img src="https://raw.githubusercontent.com/james-sib/verifly-mcp-server/master/logo.png" width="120" alt="Verifly logo" />
 </p>
 
+## Free email tools & API
+
+- [Catch-all email verifier](https://verifly.email/tools/catch-all-checker) — check if a domain is accept-all
+- [Disposable email checker](https://verifly.email/tools/disposable-email-checker)
+- [Bulk email verification API](https://verifly.email/bulk-email-verification-api) — clean CSV lists
+- [Email verification API for developers](https://verifly.email/email-verification-api-for-developers) — pay-as-you-go, 100 free credits, no monthly fee
+
 # Verifly MCP Server
 
 Agent-native **email verification** over the
